@@ -1,4 +1,4 @@
-name: CI/CD with Jira and Slack (from commit)
+name: CI/CD with Jira and Slack
 
 on:
   pull_request:
@@ -8,53 +8,34 @@ jobs:
   handle-pr:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get ISSUE_KEY from commits
-        id: extract_issue
-        run: |
-          echo "📥 Đang lấy commit từ PR..."
-          git fetch origin ${{ github.event.pull_request.head.ref }}
-          
-          COMMITS=$(git log origin/${{ github.event.pull_request.head.ref }} --pretty=format:"%s")
-          echo "Các commit:"
-          echo "$COMMITS"
-
-          ISSUE_KEY=$(echo "$COMMITS" | grep -o -m 1 '[A-Z]\+-[0-9]\+')
-          
-          if [ -n "$ISSUE_KEY" ]; then
-            echo "✅ Found ISSUE_KEY: $ISSUE_KEY"
-            echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
-          else
-            echo "❗ Không tìm thấy ISSUE_KEY trong commit messages."
-            echo "issue_key=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Update Jira Issue Status When PR is Merged
-        if: github.event.pull_request.merged == true && steps.extract_issue.outputs.issue_key != ''
+        if: github.event.pull_request.merged == true
         run: |
-          ISSUE_KEY=${{ steps.extract_issue.outputs.issue_key }}
-          echo "🔄 Đang cập nhật Jira issue: $ISSUE_KEY"
-          RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
-            -u ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }} \
-            -X PUT \
-            -H "Content-Type: application/json" \
-            -d '{"fields":{"status":{"name":"Done"}}}' \
-            "${{ secrets.JIRA_BASE_URL }}/rest/api/2/issue/$ISSUE_KEY")
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -o '[A-Z]\+-[0-9]\+')
+          if [ -n "$ISSUE_KEY" ]; then
+            echo "📌 Found Jira Issue Key: $ISSUE_KEY"
+            RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+              -u ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }} \
+              -X PUT \
+              -H "Content-Type: application/json" \
+              -d '{"fields":{"status":{"name":"Done"}}}' \
+              "${{ secrets.JIRA_BASE_URL }}/rest/api/2/issue/$ISSUE_KEY")
 
-          if [ "$RESPONSE" = "204" ]; then
-            echo "✅ Jira issue cập nhật thành công."
+            if [ "$RESPONSE" = "204" ]; then
+              echo "✅ Jira issue updated successfully."
+            else
+              echo "❗ Jira API returned status: $RESPONSE"
+              cat response.txt
+            fi
           else
-            echo "❌ Jira API trả về lỗi: $RESPONSE"
-            cat response.txt
+            echo "❗ Không tìm thấy ISSUE_KEY trong tiêu đề PR. Bỏ qua cập nhật Jira."
           fi
 
       - name: Notify Slack when Jira issue is closed
-        if: github.event.pull_request.merged == true && steps.extract_issue.outputs.issue_key != ''
+        if: github.event.pull_request.merged == true
         run: |
           curl -X POST -H 'Content-type: application/json' \
             --data "{
-              \"text\": \"✅ Jira issue *${{ steps.extract_issue.outputs.issue_key }}* liên quan đến PR *#${{ github.event.pull_request.number }}* đã được cập nhật sang trạng thái Done.\"
+              \"text\": \"✅ Jira issue liên quan đến PR *#${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}* đã được cập nhật sang trạng thái Done.\"
             }" \
             ${{ secrets.SLACK_WEBHOOK_URL }} || echo "⚠️ Slack notification failed"
