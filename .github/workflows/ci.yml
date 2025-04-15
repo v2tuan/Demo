@@ -2,17 +2,17 @@ name: CI for HTML Project
 
 on:
   pull_request:
-    branches: [ main ]
+    types: [opened, synchronize, reopened]
 
 jobs:
   validate-html:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Validate HTML
         run: |
-          echo "Checking HTML files..."
-          find . -name "*.html" -exec tidy -e {} \;
+          sudo apt-get update
+          sudo apt-get install -y tidy
+          tidy -errors -q index.html
