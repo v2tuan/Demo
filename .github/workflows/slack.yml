@@ -18,7 +18,7 @@ jobs:
               -u ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }} \
               -X PUT \
               -H "Content-Type: application/json" \
-              -d '{"fields":{"status":{"name":"Done"}}}' \
+              -d '{"fields":{"status":{"name":"DONE"}}}' \
               "${{ secrets.JIRA_BASE_URL }}/rest/api/2/issue/$ISSUE_KEY")
 
             if [ "$RESPONSE" = "204" ]; then
