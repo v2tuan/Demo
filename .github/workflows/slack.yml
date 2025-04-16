@@ -15,20 +15,20 @@ jobs:
           if [ -n "$ISSUE_KEY" ]; then
             echo "📌 Found Jira Issue Key: $ISSUE_KEY"
 
-            # Lấy danh sách transition của issue
+            # Lấy danh sách transitions
             TRANSITIONS=$(curl -s \
               -u ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }} \
               -X GET \
               -H "Content-Type: application/json" \
               "${{ secrets.JIRA_BASE_URL }}/rest/api/2/issue/$ISSUE_KEY/transitions")
 
-            # Tìm ID của trạng thái "Done"
-            TRANSITION_ID=$(echo "$TRANSITIONS" | jq -r '.transitions[] | select(.name=="done") | .id')
+            # Tìm ID của transition có tên là "Done"
+            TRANSITION_ID=$(echo "$TRANSITIONS" | jq -r '.transitions[] | select(.name=="Done") | .id')
 
             if [ -n "$TRANSITION_ID" ]; then
-              echo "🔄 Found transition ID for 'Done': $TRANSITION_ID"
+              echo "🔄 Transition ID for 'Done': $TRANSITION_ID"
 
-              # Gửi request để chuyển trạng thái
+              # Gửi yêu cầu để chuyển trạng thái sang "Done"
               RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
                 -u ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }} \
                 -X POST \
@@ -43,7 +43,7 @@ jobs:
                 cat response.txt
               fi
             else
-              echo "❗ Không tìm thấy transition tên 'Done' cho issue $ISSUE_KEY"
+              echo "❗ Không tìm thấy trạng thái 'Done' trong danh sách transition."
             fi
           else
             echo "❗ Không tìm thấy ISSUE_KEY trong tiêu đề PR. Bỏ qua cập nhật Jira."
