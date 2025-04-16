@@ -14,18 +14,36 @@ jobs:
           ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -o '[A-Z]\+-[0-9]\+')
           if [ -n "$ISSUE_KEY" ]; then
             echo "📌 Found Jira Issue Key: $ISSUE_KEY"
-            RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
-              -u ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }} \
-              -X PUT \
-              -H "Content-Type: application/json" \
-              -d '{"fields":{"status":{"name":"DONE"}}}' \
-              "${{ secrets.JIRA_BASE_URL }}/rest/api/2/issue/$ISSUE_KEY")
 
-            if [ "$RESPONSE" = "204" ]; then
-              echo "✅ Jira issue updated successfully."
+            # Lấy danh sách transition của issue
+            TRANSITIONS=$(curl -s \
+              -u ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }} \
+              -X GET \
+              -H "Content-Type: application/json" \
+              "${{ secrets.JIRA_BASE_URL }}/rest/api/2/issue/$ISSUE_KEY/transitions")
+
+            # Tìm ID của trạng thái "Done"
+            TRANSITION_ID=$(echo "$TRANSITIONS" | jq -r '.transitions[] | select(.name=="DONE") | .id')
+
+            if [ -n "$TRANSITION_ID" ]; then
+              echo "🔄 Found transition ID for 'Done': $TRANSITION_ID"
+
+              # Gửi request để chuyển trạng thái
+              RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+                -u ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }} \
+                -X POST \
+                -H "Content-Type: application/json" \
+                -d "{\"transition\":{\"id\":\"$TRANSITION_ID\"}}" \
+                "${{ secrets.JIRA_BASE_URL }}/rest/api/2/issue/$ISSUE_KEY/transitions")
+
+              if [ "$RESPONSE" = "204" ] || [ "$RESPONSE" = "200" ]; then
+                echo "✅ Jira issue transitioned to 'Done' successfully."
+              else
+                echo "❗ Jira API returned status: $RESPONSE"
+                cat response.txt
+              fi
             else
-              echo "❗ Jira API returned status: $RESPONSE"
-              cat response.txt
+              echo "❗ Không tìm thấy transition tên 'Done' cho issue $ISSUE_KEY"
             fi
           else
             echo "❗ Không tìm thấy ISSUE_KEY trong tiêu đề PR. Bỏ qua cập nhật Jira."
@@ -36,6 +54,6 @@ jobs:
         run: |
           curl -X POST -H 'Content-type: application/json' \
             --data "{
-              \"text\": \"✅ Jira issue liên quan đến PR *#${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}* đã được cập nhật sang trạng thái Done.\"
+              \"text\": \"✅ Jira issue liên quan đến PR *#${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}* đã được cập nhật sang trạng thái *Done*.\" 
             }" \
             ${{ secrets.SLACK_WEBHOOK_URL }} || echo "⚠️ Slack notification failed"
