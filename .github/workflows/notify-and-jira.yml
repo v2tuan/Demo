@@ -2,8 +2,7 @@ name: Notify Slack and Update Jira
 
 on:
   push:
-    branches:
-      - main  # hoặc branch bạn muốn theo dõi
+    branches: [ main, master, develop ]
 
 jobs:
   notify:
