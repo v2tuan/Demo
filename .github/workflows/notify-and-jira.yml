@@ -64,17 +64,17 @@ jobs:
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
       - name: Set up Python
-        if: contains(steps.commit.outputs.message, 'PROJ-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
+        if: contains(steps.commit.outputs.message, 'TOD-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
 
       - name: Install dependencies
-        if: contains(steps.commit.outputs.message, 'PROJ-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
+        if: contains(steps.commit.outputs.message, 'TOD-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
         run: pip install requests
 
       - name: Create Jira update script
-        if: contains(steps.commit.outputs.message, 'PROJ-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
+        if: contains(steps.commit.outputs.message, 'TOD-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
         run: |
           cat > update_jira.py << 'EOL'
           #!/usr/bin/env python3
@@ -103,22 +103,22 @@ jobs:
           issue_pattern = r'[A-Z]+-\d+'
           issues = re.findall(issue_pattern, commit_message)
 
-          # Xác định trạng thái dựa vào từ khóa
+          # Xác định trạng thái dựa vào từ khóa - Cập nhật theo danh sách Transition ID của bạn
           transition_id = None
           transition_name = None
           
           if re.search(r'\bfix\b', commit_message.lower()):
-              transition_name = "In Review"
-              transition_id = "31"  # ID này cần được thay đổi theo cấu hình Jira của bạn
+              transition_name = "In Progress"
+              transition_id = "21"  # In Progress ID
           elif re.search(r'\bclose\b', commit_message.lower()):
               transition_name = "Done"
-              transition_id = "41"  # ID này cần được thay đổi theo cấu hình Jira của bạn
+              transition_id = "31"  # Done ID
           elif re.search(r'\bresolve\b', commit_message.lower()):
-              transition_name = "Resolved"
-              transition_id = "51"  # ID này cần được thay đổi theo cấu hình Jira của bạn
+              transition_name = "Done"
+              transition_id = "31"  # Done ID (vì không có Resolved)
           else:
               transition_name = "In Progress"
-              transition_id = "21"  # ID này cần được thay đổi theo cấu hình Jira của bạn
+              transition_id = "21"  # Mặc định là In Progress
 
           # Báo cáo cấu hình
           print(f"Jira Base URL: {jira_base_url}")
@@ -132,7 +132,7 @@ jobs:
               if transition_id:
                   try:
                       # Gọi API Jira để chuyển trạng thái
-                      url = f"{jira_base_url}/rest/api/2/issue/{issue}/transitions"
+                      url = f"{jira_base_url}/rest/api/3/issue/{issue}/transitions"
                       auth = HTTPBasicAuth(jira_email, jira_api_token)
                       headers = {
                           "Accept": "application/json",
@@ -205,7 +205,7 @@ jobs:
           chmod +x update_jira.py
 
       - name: Run Jira update script
-        if: contains(steps.commit.outputs.message, 'PROJ-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
+        if: contains(steps.commit.outputs.message, 'TOD-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
         run: python update_jira.py "${{ steps.commit.outputs.message }}"
         env:
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
