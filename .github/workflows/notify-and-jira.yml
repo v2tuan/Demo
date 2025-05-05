@@ -132,7 +132,7 @@ jobs:
               if transition_id:
                   try:
                       # Gọi API Jira để chuyển trạng thái
-                      url = f"{jira_base_url}/rest/api/3/issue/{issue}/transitions"
+                      url = f"{jira_base_url}/rest/api/2/issue/{issue}/transitions"
                       auth = HTTPBasicAuth(jira_email, jira_api_token)
                       headers = {
                           "Accept": "application/json",
