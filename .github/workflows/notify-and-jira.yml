@@ -14,9 +14,7 @@ jobs:
 
       - name: Extract commit messages
         run: |
-          echo "COMMITS<<EOF" >> $GITHUB_ENV
-          git log -1 --pretty=format:"%s" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "COMMITS=$(git log -1 --pretty=format:'%s')" >> $GITHUB_ENV
 
       - name: Notify Slack
         run: |
@@ -36,6 +34,3 @@ jobs:
               --data '{"transition":{"id":"31"}}' \
               "https://${{ secrets.JIRA_DOMAIN }}/rest/api/3/issue/$issue_key/transitions"
           fi
-
-env:
-  COMMITS: ${{ env.COMMITS }}
