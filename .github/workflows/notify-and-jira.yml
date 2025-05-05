@@ -90,7 +90,7 @@ jobs:
 
           # Cấu hình từ biến môi trường
           jira_base_url = os.environ.get('JIRA_BASE_URL')
-          jira_email = os.environ.get('JIRA_USER_EMAIL')
+          jira_email = os.environ.get('JIRA_EMAIL')
           jira_api_token = os.environ.get('JIRA_API_TOKEN')
           slack_webhook_url = os.environ.get('SLACK_WEBHOOK_URL')
 
@@ -210,5 +210,5 @@ jobs:
         env:
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
