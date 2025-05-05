@@ -5,32 +5,92 @@ on:
     branches: [ main, master, develop ]
 
 jobs:
-  notify:
+  notify-and-update:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
+      - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Lấy toàn bộ lịch sử để có thể xem các commit
 
-      - name: Extract commit messages
+      - name: Get commit info
+        id: commit
         run: |
-          echo "COMMITS=$(git log -1 --pretty=format:'%s')" >> $GITHUB_ENV
+          COMMIT_MSG=$(git log -1 --pretty=format:%s)
+          COMMIT_AUTHOR=$(git log -1 --pretty=format:%an)
+          COMMIT_SHA=$(git log -1 --pretty=format:%h)
+          echo "message=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
 
-      - name: Notify Slack
+      - name: Send notification to Slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: |
+            {
+              "text": "Mới có push lên repository *${{ github.repository }}*",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Commit mới trên ${{ github.repository }}*\n*Branch:* ${{ github.ref_name }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Commit message:* ${{ steps.commit.outputs.message }}\n*Author:* ${{ steps.commit.outputs.author }}\n*Commit SHA:* ${{ steps.commit.outputs.sha }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "Xem trên GitHub"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.commit.outputs.sha }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Update Jira issues based on commit message
+        uses: atlassian/gajira-transition@v3
+        if: contains(steps.commit.outputs.message, 'PROJ-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
+        with:
+          issue: ${{ steps.commit.outputs.issue }}
+          transition: ${{ steps.commit.outputs.transition }}
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+
+      - name: Extract Jira ticket and transition
+        id: jira
+        if: contains(steps.commit.outputs.message, 'PROJ-') || contains(steps.commit.outputs.message, 'fix') || contains(steps.commit.outputs.message, 'close') || contains(steps.commit.outputs.message, 'resolve')
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"New commit: '"$COMMITS"'"}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
-
-      - name: Parse Jira Issue Key and Update Jira
-        run: |
-          issue_key=$(echo "$COMMITS" | grep -oE '[A-Z]+-[0-9]+')
-          echo "Found issue: $issue_key"
-
-          if [ -n "$issue_key" ]; then
-            curl -X POST \
-              -H "Authorization: Basic $(echo -n '${{ secrets.JIRA_USER_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}' | base64)" \
-              -H "Content-Type: application/json" \
-              --data '{"transition":{"id":"31"}}' \
-              "https://${{ secrets.JIRA_DOMAIN }}/rest/api/3/issue/$issue_key/transitions"
+          # Trích xuất mã ticket Jira (giả sử mẫu là PROJ-123)
+          ISSUE=$(echo "${{ steps.commit.outputs.message }}" | grep -o -E '[A-Z]+-[0-9]+' | head -1)
+          
+          # Xác định trạng thái dựa vào từ khóa
+          if [[ "${{ steps.commit.outputs.message }}" == *"fix"* ]]; then
+            TRANSITION="In Review"
+          elif [[ "${{ steps.commit.outputs.message }}" == *"close"* ]]; then
+            TRANSITION="Done"
+          elif [[ "${{ steps.commit.outputs.message }}" == *"resolve"* ]]; then
+            TRANSITION="Resolved"
+          else
+            TRANSITION="In Progress"
           fi
+          
+          echo "issue=$ISSUE" >> $GITHUB_OUTPUT
+          echo "transition=$TRANSITION" >> $GITHUB_OUTPUT
