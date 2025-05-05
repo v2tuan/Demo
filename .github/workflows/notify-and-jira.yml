@@ -1,0 +1,42 @@
+name: Notify Slack and Update Jira
+
+on:
+  push:
+    branches:
+      - main  # hoặc branch bạn muốn theo dõi
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Extract commit messages
+        run: |
+          echo "COMMITS<<EOF" >> $GITHUB_ENV
+          git log -1 --pretty=format:"%s" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Notify Slack
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"New commit: '"$COMMITS"'"}' \
+          ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Parse Jira Issue Key and Update Jira
+        run: |
+          issue_key=$(echo "$COMMITS" | grep -oE '[A-Z]+-[0-9]+')
+          echo "Found issue: $issue_key"
+
+          if [ -n "$issue_key" ]; then
+            curl -X POST \
+              -H "Authorization: Basic $(echo -n '${{ secrets.JIRA_USER_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}' | base64)" \
+              -H "Content-Type: application/json" \
+              --data '{"transition":{"id":"31"}}' \
+              "https://${{ secrets.JIRA_DOMAIN }}/rest/api/3/issue/$issue_key/transitions"
+          fi
+
+env:
+  COMMITS: ${{ env.COMMITS }}
