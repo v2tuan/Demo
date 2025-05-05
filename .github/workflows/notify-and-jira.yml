@@ -23,7 +23,7 @@ jobs:
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data '{"text":"New commit: '"$COMMITS"'"}' \
-          ${{ secrets.SLACK_WEBHOOK }}
+          ${{ secrets.SLACK_WEBHOOK_URL }}
 
       - name: Parse Jira Issue Key and Update Jira
         run: |
